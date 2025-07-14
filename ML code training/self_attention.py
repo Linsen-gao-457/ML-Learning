@@ -154,54 +154,106 @@ class SelfAttentionInterview(nn.Module):
 # net.feedforward(X=X,mask=mask)
 
 
-class MultiHeadAttentionFormal(nn.Module):
-    def __init__(self, hidden_dim:int = 128, head_num:int= 8, attention_dropout_rate = 0.1, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+# class MultiHeadAttentionFormal(nn.Module):
+#     def __init__(self, hidden_dim:int = 128, head_num:int= 8, attention_dropout_rate = 0.1, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.hidden_dim = hidden_dim
+#         self.head_num = head_num
+#         self.head_dim = hidden_dim//head_num
+#         self.Q_proj = nn.Linear(hidden_dim,hidden_dim)
+#         self.K_proj = nn.Linear(hidden_dim, hidden_dim)
+#         self.V_proj = nn.Linear(hidden_dim,hidden_dim)
+#         self.output_proj = nn.Linear(hidden_dim,hidden_dim)
+#         self.attention_dropout = nn.Dropout(p = attention_dropout_rate)
+
+#     def Forward(self, X, mask= None):
+#         # X's shape (batch_size, seq_len, hidden_dim)
+#         batch_size, seq_size, _ = X.size()
+#         Q = self.Q_proj(X)
+#         K = self.K_proj(X)
+#         V = self.V_proj(X) 
+#         # (b,s,hidden_dim)-> (b, head_num, s, head_dim)
+#         q_state = Q.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
+#         k_state = K.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
+#         v_state = V.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
+#         # atten_val's shape is (batch_size, head_num, seq_len, seq_len)
+#         atten_val = q_state @ k_state.transpose(-1,-2)/math.sqrt(self.head_dim)
+        
+#         if mask is not None:
+#             atten_val = atten_val.masked_fill(
+#                 atten_val == 0, float("-inf")
+#             )
+#         atten_val = self.attention_dropout(atten_val)
+#         atten_weight = torch.softmax(atten_val, dim=-1)
+#         output_mid = atten_weight @ v_state # (b, head_num, seq, head_dim) -> (b,s, hidden_dim)
+#         output_mid = output_mid.transpose(1,2).contiguous()
+#         output_mid = output_mid.view(batch_size, seq_size, -1)
+#         output = self.output_proj(output_mid)
+#         print(output)
+#         return output
+
+# X = torch.rand(3,2,128)
+# net = MultiHeadAttentionFormal(hidden_dim=128, head_num=8)
+
+# mask = (
+# torch.tensor(
+#     [
+#         [0,1],
+#         [0,0],
+#         [1,0]
+#     ]
+# ).unsqueeze(1).unsqueeze(2).expand(3,8,2,2)
+# )
+# print(mask.size())
+# net.Forward(X=X,mask=mask)
+
+
+class MultiHeadatten(nn.Module):
+    def __init__(self, hidden_dim:int =128, head_num:int =8, attention_droprate = 0.1):
+        super().__init__()
         self.hidden_dim = hidden_dim
         self.head_num = head_num
         self.head_dim = hidden_dim//head_num
         self.Q_proj = nn.Linear(hidden_dim,hidden_dim)
-        self.K_proj = nn.Linear(hidden_dim, hidden_dim)
+        self.K_proj = nn.Linear(hidden_dim,hidden_dim)
         self.V_proj = nn.Linear(hidden_dim,hidden_dim)
-        self.output_proj = nn.Linear(hidden_dim,hidden_dim)
-        self.attention_dropout = nn.Dropout(p = attention_dropout_rate)
+        self.Out_proj = nn.Linear(hidden_dim,hidden_dim)
+        self.dropout = nn.Dropout(p=attention_droprate)
 
-    def Forward(self, X, mask= None):
-        # X's shape (batch_size, seq_len, hidden_dim)
-        batch_size, seq_size, _ = X.size()
+    def Forward(self, X, mask = None):
+        # X's shape(batch_size, seq_len, hidden_dim)
+        # prj (batch_size, seq_len, hidden_dim) -> multi_head (batch_size, head_num, seq_len, head_dim)
+        batch_size, seq_len, _ = X.size()
         Q = self.Q_proj(X)
         K = self.K_proj(X)
-        V = self.V_proj(X) 
-        # (b,s,hidden_dim)-> (b, head_num, s, head_dim)
-        q_state = Q.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
-        k_state = K.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
-        v_state = V.view(batch_size, seq_size, self.head_num, self.head_dim).transpose(1,2)
-        # atten_val's shape is (batch_size, head_num, seq_len, seq_len)
-        atten_val = q_state @ k_state.transpose(-1,-2)/math.sqrt(self.head_dim)
-        
+        V = self.V_proj(X)
+        Q_state = Q.view(batch_size, seq_len, self.head_num, self.head_dim).transpose(1,2)
+        K_state = K.view(batch_size, seq_len, self.head_num, self.head_dim).transpose(1,2)
+        V_state = V.view(batch_size, seq_len, self.head_num, self.head_dim).transpose(1,2)
+        # atten_val's shape (batch_size, head_num, seq_len, seq_len)
+        atten_val = Q_state @ K_state.transpose(-1,-2)/math.sqrt(self.head_dim)
         if mask is not None:
             atten_val = atten_val.masked_fill(
                 atten_val == 0, float("-inf")
             )
-        atten_val = self.attention_dropout(atten_val)
+        self.dropout(atten_val)
         atten_weight = torch.softmax(atten_val, dim=-1)
-        output_mid = atten_weight @ v_state # (b, head_num, seq, head_dim) -> (b,s, hidden_dim)
-        output_mid = output_mid.transpose(1,2).contiguous()
-        output_mid = output_mid.view(batch_size, seq_size, -1)
-        output = self.output_proj(output_mid)
-        print(output)
+        print(atten_weight.shape)
+        # outpus's shape is (batch_size, head_num, seq_len, head_dim) -> (batch_size, seq_len, hidden_dim)
+        pre_output = atten_weight @ V_state
+        pre_output = pre_output.transpose(1,2).contiguous()
+        pre_output=pre_output.view(batch_size, seq_len, -1)
+        output = self.Out_proj(pre_output)
         return output
-
+    
 X = torch.rand(3,2,128)
-net = MultiHeadAttentionFormal(hidden_dim=128, head_num=8)
-
-mask = (
-torch.tensor(
+net = MultiHeadatten()
+# mask size(batch_size=3, head_num= 8, seq_len= 2, seq_len=2)
+mask = (torch.Tensor(
     [
-        [0,1],
-        [0,0],
+        [1,1],
+        [1,0],
         [1,0]
     ]
-).unsqueeze(1).unsqueeze(2).expand(3,8,2,2)
-)
-net.Forward(X=X,mask=mask)
+)).unsqueeze(1).unsqueeze(2).expand(3,8,2,2)
+net.Forward(X=X, mask=mask)
